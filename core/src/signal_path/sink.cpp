@@ -239,6 +239,27 @@ void SinkManager::setStreamSink(std::string name, std::string providerName) {
     }
 }
 
+void SinkManager::setStreamMuteState(std::string name, bool muted) {
+    if (streams.find(name) == streams.end()) {
+        flog::error("Cannot set mute state for stream '{0}'. Stream doesn't exist", name);
+        return;
+    }
+
+    streams[name]->volumeAjust.setMuted(muted);
+
+    core::configManager.acquire();
+    saveStreamConfig(name);
+    core::configManager.release(true);
+}
+
+bool SinkManager::isStreamMuted(std::string name) {
+    if (streams.find(name) == streams.end()) {
+        return false;
+    }
+
+    return streams[name]->volumeAjust.getMuted();
+}
+
 void SinkManager::showVolumeSlider(std::string name, std::string prefix, float width, float btnHeight, int btnBorder, bool sameLine) {
     // TODO: Replace map with some hashmap for it to be faster
     float height = ImGui::GetTextLineHeightWithSpacing() + 2;

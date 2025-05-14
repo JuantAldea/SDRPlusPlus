@@ -1,3 +1,4 @@
+#include <cmath>
 #include <gui/widgets/waterfall.h>
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -7,6 +8,7 @@
 #include <utils/flog.h>
 #include <gui/gui.h>
 #include <gui/style.h>
+#include <signal_path/signal_path.h>
 
 float DEFAULT_COLOR_MAP[][3] = {
     { 0x00, 0x00, 0x20 },
@@ -291,6 +293,13 @@ namespace ImGui {
             vfoSelect = false;
             vfoBorderSelect = false;
             lastDrag = 0;
+            clickMustBeReleased = false;
+        }
+
+
+        if (clickMustBeReleased) {
+            // Prevent mouse actions if a button was clicked but the buttom was not released
+            return;
         }
 
         bool targetFound = false;
@@ -303,6 +312,18 @@ namespace ImGui {
                 targetFound = true;
             }
         }
+
+        // Check for VFO mute button click if a general click occurred and not already handled by resize bar
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !targetFound && !gui::mainWindow.lockWaterfallControls) {
+            for (auto const& [name, vfo] : vfos) {
+                if (vfo->handleInput()) {
+                    targetFound = true;
+                    clickMustBeReleased = true;
+                    return;
+                }
+            }
+        }
+
 
         // If mouse was clicked inside the central part, check what was clicked
         if (mouseClicked && !targetFound) {
@@ -341,7 +362,7 @@ namespace ImGui {
             }
 
             // Now, check frequency scale
-            if (!targetFound && mouseInFreq) {
+            if (!targetFound && mouseInFreq && !mouseHeld) {
                 freqScaleSelect = true;
             }
         }
@@ -463,7 +484,7 @@ namespace ImGui {
         }
 
         // Finally, if nothing else was selected, just move the VFO
-        if ((VFOMoveSingleClick ? ImGui::IsMouseClicked(ImGuiMouseButton_Left) : ImGui::IsMouseDown(ImGuiMouseButton_Left)) && (mouseInFFT | mouseInWaterfall) && (mouseMoved || hoveredVFOName == "")) {
+        if ((VFOMoveSingleClick ? ImGui::IsMouseClicked(ImGuiMouseButton_Left) : ImGui::IsMouseDown(ImGuiMouseButton_Left)) && (mouseInFFT || mouseInWaterfall) && (mouseMoved || hoveredVFOName == "")) {
             if (selVfo != NULL) {
                 int refCenter = mousePos.x - fftAreaMin.x;
                 if (refCenter >= 0 && refCenter < dataWidth) {
@@ -1351,6 +1372,36 @@ namespace ImGui {
 
         notchMin = ImVec2(gui::waterfall.fftAreaMin.x + notch - gripSize, gui::waterfall.fftAreaMin.y);
         notchMax = ImVec2(gui::waterfall.fftAreaMin.x + notch + gripSize, gui::waterfall.fftAreaMax.y - 1);
+
+        float buttonSquareSize = 16.0f * style::uiScale;
+        ImVec2 vfoCenter(rectMin.x + (rectMax.x - rectMin.x)/2, rectMax.y/2);
+
+        muteButtonMin = ImVec2(vfoCenter.x - buttonSquareSize/2, vfoCenter.y - buttonSquareSize/2);
+        muteButtonMax = ImVec2(vfoCenter.x + buttonSquareSize/2, vfoCenter.y + buttonSquareSize/2);
+    }
+
+    void WaterfallVFO::drawMuteButton(ImGuiWindow* window) {
+        const bool muted = sigpath::sinkManager.isStreamMuted(name);
+        ImTextureID currentIcon = muted ? icons::MUTED : icons::UNMUTED;
+        ImU32 iconDrawColor = ImGui::GetColorU32(ImGuiCol_Text);
+
+        if (ImGui::IsMouseHoveringRect(muteButtonMin, muteButtonMax) && !gui::mainWindow.lockWaterfallControls && !gui::waterfall.inputHandled) {
+            iconDrawColor = ImGui::GetColorU32(ImGuiCol_ButtonHovered);
+        }
+        window->DrawList->AddImage(currentIcon, muteButtonMin, muteButtonMax, ImVec2(0, 0), ImVec2(1, 1), iconDrawColor);
+    }
+
+    bool WaterfallVFO::handleInput() {
+        if (ImGui::IsMouseHoveringRect(muteButtonMin, muteButtonMax)) {
+            muteToggle();
+            return true;
+        }
+
+        return false;
+    }
+
+    void WaterfallVFO::muteToggle() {
+        sigpath::sinkManager.setStreamMuteState(name, !sigpath::sinkManager.isStreamMuted(name));
     }
 
     void WaterfallVFO::draw(ImGuiWindow* window, bool selected) {
@@ -1358,6 +1409,8 @@ namespace ImGui {
         if (lineVisible) {
             window->DrawList->AddLine(lineMin, lineMax, selected ? IM_COL32(255, 0, 0, 255) : IM_COL32(255, 255, 0, 255), style::uiScale);
         }
+
+        drawMuteButton(window);
 
         if (notchVisible) {
             window->DrawList->AddRectFilled(notchMin, notchMax, IM_COL32(255, 0, 0, 127));

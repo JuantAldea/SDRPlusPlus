@@ -101,6 +101,9 @@ public:
 
     void setStreamSink(std::string name, std::string providerName);
 
+    void setStreamMuteState(std::string name, bool muted);
+    bool isStreamMuted(std::string name);
+
     void showVolumeSlider(std::string name, std::string prefix, float width, float btnHeight = -1.0f, int btnBorder = 0, bool sameLine = false);
 
     dsp::stream<dsp::stereo_t>* bindStream(std::string name);

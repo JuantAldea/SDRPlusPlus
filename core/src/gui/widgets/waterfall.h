@@ -2,6 +2,7 @@
 #include <vector>
 #include <mutex>
 #include <gui/widgets/bandplan.h>
+#include <gui/icons.h>
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
 #include <utils/event.h>
@@ -21,6 +22,8 @@ namespace ImGui {
         void setNotchOffset(double offset);
         void setNotchVisible(bool visible);
         void updateDrawingVars(double viewBandwidth, float dataWidth, double viewOffset, ImVec2 widgetPos, int fftHeight); // NOTE: Datawidth double???
+        bool handleInput();
+        void muteToggle();
         void draw(ImGuiWindow* window, bool selected);
 
         enum {
@@ -76,8 +79,15 @@ namespace ImGui {
 
         ImU32 color = IM_COL32(255, 255, 255, 50);
 
+        std::string name;
+        ImVec2 muteButtonMin;
+        ImVec2 muteButtonMax;
+
         Event<double> onUserChangedBandwidth;
         Event<double> onUserChangedNotch;
+
+    private:
+        void drawMuteButton(ImGuiWindow* window);
     };
 
     class WaterFall {
@@ -268,6 +278,7 @@ namespace ImGui {
         double range;
 
         float lastDrag;
+        bool clickMustBeReleased = false;
 
         int vfoRef = REF_CENTER;
 
